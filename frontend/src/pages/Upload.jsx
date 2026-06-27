@@ -69,9 +69,9 @@ function Upload() {
     setIsUploading(true);
 
     try {
-      await uploadDataset(selectedFile);
+      const response = await uploadDataset(selectedFile);
       showToast('Upload sent to backend successfully.', 'success');
-      navigate('/preview');
+      navigate(`/preview/${encodeURIComponent(response.data.filename)}`);
     } catch (error) {
       setErrorMessage(error?.response?.data?.message || 'Upload failed. Please retry.');
       showToast('Upload failed. Please retry.', 'error');

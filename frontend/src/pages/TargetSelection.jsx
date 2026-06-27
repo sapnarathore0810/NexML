@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FiArrowRight, FiArrowLeft } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import DatasetSummary from '../components/target/DatasetSummary';
 import FeatureList from '../components/target/FeatureList';
 import TargetDropdown from '../components/target/TargetDropdown';
@@ -9,7 +9,7 @@ import ErrorState from '../components/common/ErrorState';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import Toast from '../components/common/Toast';
 import useToast from '../hooks/useToast';
-import { fetchDatasetInfo, selectTargetColumn } from '../services/nexmlApi';
+import { fetchDatasetInfo, preprocessDataset } from '../services/nexmlApi';
 
 const columns = [
   { name: 'Age', type: 'Integer', uniqueValues: 42, missingValues: 12, problem: 'regression' },
@@ -28,11 +28,14 @@ const datasetSummary = [
 ];
 
 function TargetSelection() {
+  const navigate = useNavigate();
+  const { filename } = useParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTarget, setSelectedTarget] = useState('Purchased');
   const [summaryItems, setSummaryItems] = useState(datasetSummary);
   const [targetDetails, setTargetDetails] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isPreprocessing, setIsPreprocessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const { toast, showToast } = useToast();
 
@@ -48,17 +51,23 @@ function TargetSelection() {
   const displayColumn = targetDetails || selectedColumn;
 
   const loadDatasetMeta = async () => {
+    if (!filename) {
+      setErrorMessage('No uploaded filename was found. Please upload a CSV first.');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setErrorMessage('');
 
     try {
-      const response = await fetchDatasetInfo();
-      const summary = response.data.summary;
+      const response = await fetchDatasetInfo(filename);
+      const summary = response.data;
 
       setSummaryItems([
         { label: 'Rows', value: summary.rows.toLocaleString() },
         { label: 'Columns', value: String(summary.columns) },
-        { label: 'Missing Values', value: `${summary.missing_values}%` },
+        { label: 'Missing Values', value: `${summary.missing_values.length}` },
         { label: 'Dataset Type', value: 'Tabular' },
       ]);
       showToast('Target data loaded from backend.', 'success');
@@ -77,21 +86,44 @@ function TargetSelection() {
   useEffect(() => {
     const syncTarget = async () => {
       try {
-        const response = await selectTargetColumn(selectedTarget);
+        const response = await fetchDatasetInfo(filename);
         setTargetDetails({
           name: selectedTarget,
-          type: response.data.target_info.data_type,
-          uniqueValues: response.data.target_info.unique_values,
-          missingValues: response.data.target_info.missing_values,
-          problem: response.data.problem_type,
+          type: response.data.data_types?.[selectedTarget] || 'Category',
+          uniqueValues: selectedColumn.uniqueValues,
+          missingValues: response.data.missing_values?.find((item) => item.column === selectedTarget)?.count || 0,
+          problem: ['Age', 'Salary', 'Experience'].includes(selectedTarget) ? 'regression' : 'classification',
         });
       } catch {
         setTargetDetails(selectedColumn);
       }
     };
 
-    syncTarget();
-  }, [selectedTarget]);
+    if (filename) {
+      syncTarget();
+    }
+  }, [selectedTarget, filename]);
+
+  const handleStartTraining = async () => {
+    if (!filename) {
+      setErrorMessage('No uploaded filename was found. Please upload a CSV first.');
+      return;
+    }
+
+    setIsPreprocessing(true);
+    setErrorMessage('');
+
+    try {
+      await preprocessDataset(filename, selectedTarget);
+      showToast('Preprocessing completed successfully.', 'success');
+      navigate('/training', { state: { filename, targetColumn: selectedTarget } });
+    } catch (error) {
+      setErrorMessage(error?.response?.data?.detail || error?.response?.data?.message || 'Unable to preprocess dataset.');
+      showToast('Preprocessing failed.', 'error');
+    } finally {
+      setIsPreprocessing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -137,18 +169,28 @@ function TargetSelection() {
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
-              to="/preview"
+              to={filename ? `/preview/${encodeURIComponent(filename)}` : '/preview'}
               className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition-all hover:-translate-y-0.5 hover:border-slate-400 hover:text-slate-950"
             >
               <FiArrowLeft className="mr-2" />
               Back
             </Link>
-            <Link
-              to="/training"
-              className="inline-flex items-center justify-center rounded-full bg-indigo-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition-transform hover:-translate-y-0.5 hover:bg-indigo-500"
+            <button
+              type="button"
+              onClick={handleStartTraining}
+              disabled={isPreprocessing}
+              className={`inline-flex items-center justify-center rounded-full px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition-transform hover:-translate-y-0.5 hover:bg-indigo-500 disabled:cursor-wait disabled:bg-indigo-400 ${
+                isPreprocessing ? 'bg-indigo-400' : 'bg-indigo-600'
+              }`}
             >
-              Start Training <FiArrowRight className="ml-2" />
-            </Link>
+              {isPreprocessing ? (
+                <LoadingSpinner label="Preprocessing..." />
+              ) : (
+                <>
+                  Start Training <FiArrowRight className="ml-2" />
+                </>
+              )}
+            </button>
           </div>
         </div>
       </section>

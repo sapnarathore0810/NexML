@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FiX, FiArrowRight, FiArrowLeft } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import ActivityLog from '../components/training/ActivityLog';
 import ModelStatus from '../components/training/ModelStatus';
 import ProgressBar from '../components/training/ProgressBar';
@@ -39,6 +39,12 @@ function formatTime(seconds) {
 }
 
 function Training() {
+  const navigate = useNavigate();
+  const { filename: filenameParam } = useParams();
+  const location = useLocation();
+  const routeState = location.state || {};
+  const filename = routeState.filename || filenameParam || '';
+  const targetColumn = routeState.targetColumn || routeState.target_column || 'Purchased';
   const [progress, setProgress] = useState(0);
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -57,9 +63,18 @@ function Training() {
     setLoading(true);
     setErrorMessage('');
 
+    if (!filename) {
+      setErrorMessage('No selected dataset was found. Please return to target selection.');
+      setLoading(false);
+      return;
+    }
+
     try {
-      await requestTraining();
-      showToast('Training endpoint reached successfully.', 'success');
+      const response = await requestTraining(filename, targetColumn);
+      window.sessionStorage.setItem('nexml-training-results', JSON.stringify(response.data));
+      showToast('Training completed successfully.', 'success');
+      setIsCancelled(true);
+      navigate('/results', { state: response.data });
     } catch (error) {
       setErrorMessage(error?.response?.data?.message || 'Unable to start training request.');
       showToast('Training setup failed.', 'error');
@@ -100,7 +115,7 @@ function Training() {
 
   useEffect(() => {
     initializeTraining();
-  }, []);
+  }, [filename, targetColumn]);
 
   const statistics = useMemo(
     () => [
@@ -182,7 +197,7 @@ function Training() {
 
           <div>
             <Link
-              to="/target-selection"
+              to={filename ? `/target-selection/${encodeURIComponent(filename)}` : '/target-selection'}
               className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition-all hover:-translate-y-0.5 hover:border-slate-400 hover:text-slate-950"
             >
               <FiArrowLeft className="mr-2" />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FiArrowLeft, FiArrowRight } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import SummaryCards from '../components/preview/SummaryCards';
 import DatasetTable from '../components/preview/DatasetTable';
 import DataTypes from '../components/preview/DataTypes';
@@ -56,17 +56,25 @@ const insights = [
 ];
 
 function Preview() {
+  const { filename } = useParams();
   const [datasetInfo, setDatasetInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const { toast, showToast } = useToast();
 
   const loadPreview = async () => {
+    if (!filename) {
+      setDatasetInfo(null);
+      setErrorMessage('No uploaded dataset was selected. Please upload a CSV first.');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setErrorMessage('');
 
     try {
-      const response = await fetchDatasetInfo();
+      const response = await fetchDatasetInfo(filename);
       setDatasetInfo(response.data);
       showToast('Dataset preview loaded.', 'success');
     } catch (error) {
@@ -80,16 +88,16 @@ function Preview() {
 
   useEffect(() => {
     loadPreview();
-  }, []);
+  }, [filename]);
 
   const summaryCards = datasetInfo
     ? [
-        { label: 'Rows', value: datasetInfo.summary.rows.toLocaleString(), description: 'Total records' },
-        { label: 'Columns', value: String(datasetInfo.summary.columns), description: 'Feature count' },
-        { label: 'Missing Values', value: `${datasetInfo.summary.missing_values}%`, description: 'Low missing rate' },
+        { label: 'Rows', value: datasetInfo.rows.toLocaleString(), description: 'Total records' },
+        { label: 'Columns', value: String(datasetInfo.columns), description: 'Feature count' },
+        { label: 'Missing Values', value: `${datasetInfo.missing_values.length}`, description: 'Columns with gaps' },
         { label: 'Categorical Columns', value: '5', description: 'Non-numeric fields' },
         { label: 'Numerical Columns', value: '13', description: 'Numeric features' },
-        { label: 'Dataset Size', value: datasetInfo.summary.dataset_size, description: 'CSV upload size' },
+        { label: 'Dataset Size', value: `${datasetInfo.dataset_size} MB`, description: 'CSV upload size' },
       ]
     : datasetSummary;
 
@@ -137,7 +145,7 @@ function Preview() {
               Back
             </Link>
             <Link
-              to="/target-selection"
+              to={filename ? `/target-selection/${encodeURIComponent(filename)}` : '/target-selection'}
               className="inline-flex items-center justify-center rounded-full bg-indigo-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition-transform hover:-translate-y-0.5 hover:bg-indigo-500"
             >
               Select Target <FiArrowRight className="ml-2" />

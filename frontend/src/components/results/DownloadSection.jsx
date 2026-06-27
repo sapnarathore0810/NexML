@@ -1,13 +1,15 @@
+import api from '../../services/api';
+
 const downloadItems = [
-  'Download Model (.pkl)',
-  'Download Predictions (.csv)',
-  'Download Metrics (.json)',
-  'Download Training Report (.pdf)',
+  { label: 'Download Model (.pkl)', path: '/download-model' },
+  { label: 'Download Predictions (.csv)', path: '/download-predictions' },
+  { label: 'Download Metrics (.json)', path: '/download-metrics' },
+  { label: 'Download Training Report (.pdf)', path: '/download-report' },
 ];
 
 function DownloadSection() {
-  const handlePlaceholderAction = (label) => {
-    window.alert(`${label} is a placeholder action in this frontend-only step.`);
+  const handleDownload = (path) => {
+    window.open(`${api.defaults.baseURL}${path}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -16,12 +18,12 @@ function DownloadSection() {
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {downloadItems.map((item) => (
           <button
-            key={item}
+            key={item.label}
             type="button"
-            onClick={() => handlePlaceholderAction(item)}
+            onClick={() => handleDownload(item.path)}
             className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-5 text-left text-sm font-semibold text-slate-700 transition-all hover:-translate-y-1 hover:border-indigo-200 hover:bg-indigo-50"
           >
-            {item}
+            {item.label}
           </button>
         ))}
       </div>

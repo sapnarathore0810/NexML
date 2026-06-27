@@ -15,8 +15,11 @@ function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/upload" element={<Upload />} />
         <Route path="/preview" element={<Preview />} />
+        <Route path="/preview/:filename" element={<Preview />} />
         <Route path="/target-selection" element={<TargetSelection />} />
+        <Route path="/target-selection/:filename" element={<TargetSelection />} />
         <Route path="/training" element={<Training />} />
+        <Route path="/training/:filename" element={<Training />} />
         <Route path="/train" element={<Navigate to="/training" replace />} />
         <Route path="/results" element={<Results />} />
         <Route path="/predict" element={<Predict />} />
